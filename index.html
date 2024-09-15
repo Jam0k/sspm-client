@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Simple App</title>
+    <script src="https://cdn.auth0.com/js/auth0-spa-js/2.0/auth0-spa-js.production.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #user-info {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to My Simple App</h1>
+        <button id="login">Log In</button>
+        <button id="logout" style="display:none;">Log Out</button>
+        <div id="user-info"></div>
+    </div>
+
+    <script>
+        let auth0Client;
+        
+        window.onload = async function() {
+            try {
+                auth0Client = await auth0.createAuth0Client({
+                    domain: 'dev-mazc2h57lknel3yr.uk.auth0.com',
+                    clientId: 'ICvvsiC19v8WtUSQI910bSNQNjnWwKMF',
+                    authorizationParams: {
+                        redirect_uri: 'http://127.0.0.1:5500',
+                        audience: 'sspm'  // Add this line
+                    }
+                });
+        
+                // Check for the code and state parameters
+                const query = window.location.search;
+                if (query.includes("code=") && query.includes("state=")) {
+                    await auth0Client.handleRedirectCallback();
+                    window.history.replaceState({}, document.title, "/");
+                }
+        
+                await updateUI();
+        
+                // Attach event listeners
+                document.getElementById('login').addEventListener('click', login);
+                document.getElementById('logout').addEventListener('click', logout);
+            } catch (error) {
+                console.error("Error initializing Auth0:", error);
+            }
+        };
+        
+        async function updateUI() {
+            const isAuthenticated = await auth0Client.isAuthenticated();
+            document.getElementById('login').style.display = isAuthenticated ? 'none' : 'block';
+            document.getElementById('logout').style.display = isAuthenticated ? 'block' : 'none';
+        
+            if (isAuthenticated) {
+                const user = await auth0Client.getUser();
+                document.getElementById('user-info').innerHTML = `
+                    <h2>User Information</h2>
+                    <p>Name: ${user.name}</p>
+                    <p>Email: ${user.email}</p>
+                `;
+                // You can make an API call here using the JWT
+                await makeApiCall();
+            } else {
+                document.getElementById('user-info').innerHTML = '';
+            }
+        }
+        
+        async function login() {
+            try {
+                console.log("Login clicked");
+                await auth0Client.loginWithRedirect({
+                    authorizationParams: {
+                        redirect_uri: 'http://127.0.0.1:5500'
+                    }
+                });
+            } catch (error) {
+                console.error("Login error:", error);
+            }
+        }
+        
+        async function logout() {
+            try {
+                await auth0Client.logout({
+                    logoutParams: {
+                        returnTo: 'http://127.0.0.1:5500'
+                    }
+                });
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+        }
+        
+        async function makeApiCall() {
+    try {
+        const token = await auth0Client.getTokenSilently();
+        console.log("Token:", token);  // Log the token for debugging
+        const response = await fetch('http://localhost:8000/api/protected', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        console.log('API response:', data);
+    } catch (error) {
+        console.error('API call failed:', error);
+    }
+}
+        </script>
+</body>
+</html>
